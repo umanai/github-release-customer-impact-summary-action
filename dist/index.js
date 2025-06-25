@@ -20,11 +20,11 @@ class CustomerImpactSummaryGenerator {
       auth: process.env.GITHUB_TOKEN,
     });
 
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY environment variable is required");
+    if (!process.env.GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY environment variable is required");
     }
 
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
     this.model = this.genAI.getGenerativeModel({
       model: "gemini-2.0-flash-exp",
     });

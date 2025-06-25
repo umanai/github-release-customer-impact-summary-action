@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/umanai/github-release-customer-impact-summary-action#readme",
   "dependencies": {
+    "@actions/core": "^1.10.0",
     "@octokit/rest": "^20.0.2",
     "@google/generative-ai": "^0.2.1"
   },

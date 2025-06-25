@@ -2,6 +2,7 @@
 
 const { Octokit } = require("@octokit/rest");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const core = require("@actions/core");
 
 /**
  * Generate Customer Impact summary for a GitHub release
@@ -10,34 +11,37 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
  */
 class CustomerImpactSummaryGenerator {
   constructor() {
+    // Get inputs from GitHub Action or environment variables
+    const githubToken =
+      core.getInput("github_token") || process.env.GITHUB_TOKEN;
+    const geminiApiKey =
+      core.getInput("google_gemini_api_key") ||
+      process.env.GOOGLE_GEMINI_API_KEY;
+
     this.octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
+      auth: githubToken,
     });
 
-    if (!process.env.GOOGLE_GEMINI_API_KEY) {
-      throw new Error("GOOGLE_GEMINI_API_KEY environment variable is required");
+    if (!geminiApiKey) {
+      throw new Error(
+        "Google Gemini API key is required (google_gemini_api_key input or GOOGLE_GEMINI_API_KEY environment variable)"
+      );
     }
 
-    this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
+    this.genAI = new GoogleGenerativeAI(geminiApiKey);
     this.model = this.genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-pro",
     });
   }
 
   /**
    * Parse GitHub context from environment variables
    */
-  getGitHubContext() {
+  async getGitHubContext() {
     const context = {
       repo: {
         owner: process.env.GITHUB_REPOSITORY?.split("/")[0],
         repo: process.env.GITHUB_REPOSITORY?.split("/")[1],
-      },
-      release: {
-        tag_name: process.env.RELEASE_TAG,
-        name: process.env.RELEASE_NAME,
-        id: process.env.RELEASE_ID,
-        body: process.env.RELEASE_BODY || "",
       },
     };
 
@@ -45,9 +49,31 @@ class CustomerImpactSummaryGenerator {
       throw new Error("Missing GitHub repository information");
     }
 
-    if (!context.release.tag_name) {
-      throw new Error("Missing release tag information");
+    // Always look for the latest draft release
+    console.log("Looking for latest draft release...");
+
+    const releases = await this.octokit.rest.repos.listReleases({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      per_page: 10,
+    });
+
+    const draftRelease = releases.data.find((release) => release.draft);
+
+    if (!draftRelease) {
+      throw new Error("No draft release found");
     }
+
+    console.log(
+      `Found draft release: ${draftRelease.name || draftRelease.tag_name}`
+    );
+
+    context.release = {
+      tag_name: draftRelease.tag_name,
+      name: draftRelease.name,
+      id: draftRelease.id.toString(),
+      body: draftRelease.body || "",
+    };
 
     return context;
   }
@@ -199,11 +225,7 @@ Format your response as a clear, organized summary that the CS team can easily u
    * Update the release description with the Customer Impact summary
    */
   async updateReleaseDescription(context, summary, clientImpactPRs) {
-    const csSummarySection = `
-
----
-
-## 📋 Customer Impact Summary
+    const csSummarySection = `## 📋 Customer Impact Summary
 
 *This summary covers ${
       clientImpactPRs.length
@@ -215,9 +237,14 @@ ${summary}
 
 **Technical Details:** PRs included: ${clientImpactPRs
       .map((pr) => `#${pr.number}`)
-      .join(", ")} | Generated: ${new Date().toISOString()}`;
+      .join(", ")} | Generated: ${new Date().toISOString()}
 
-    const updatedBody = context.release.body + csSummarySection;
+---
+
+`;
+
+    // Insert the customer impact summary at the top, keeping existing content at the bottom
+    const updatedBody = csSummarySection + (context.release.body || "");
 
     await this.octokit.rest.repos.updateRelease({
       owner: context.repo.owner,
@@ -230,31 +257,13 @@ ${summary}
   }
 
   /**
-   * Add a notification comment to the release
-   */
-  async addNotificationComment(context, clientImpactPRs) {
-    await this.octokit.rest.repos.createReleaseComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      release_id: parseInt(context.release.id, 10),
-      body: `🤖 **Customer Impact Summary Added**
-
-I've automatically added a customer impact summary to this release description covering ${clientImpactPRs.length} client-impacting changes.
-
-The summary explains these changes in non-technical language for easy customer communication.
-
-cc: @your-cs-team-member <!-- Replace with your CS team member's GitHub username -->`,
-    });
-  }
-
-  /**
    * Main execution method
    */
   async run() {
     try {
       console.log("🚀 Starting Customer Impact Summary generation...");
 
-      const context = this.getGitHubContext();
+      const context = await this.getGitHubContext();
       const releaseName = context.release.name || context.release.tag_name;
 
       console.log(
@@ -279,13 +288,13 @@ cc: @your-cs-team-member <!-- Replace with your CS team member's GitHub username
 
       const summary = await this.generateSummary(clientImpactPRs, releaseName);
       await this.updateReleaseDescription(context, summary, clientImpactPRs);
-      await this.addNotificationComment(context, clientImpactPRs);
 
       console.log(
         "✅ Customer Impact Summary generation completed successfully"
       );
     } catch (error) {
       console.error("❌ Error generating Customer Impact summary:", error);
+      core.setFailed(error.message);
       process.exit(1);
     }
   }

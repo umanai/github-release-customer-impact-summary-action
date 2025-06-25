@@ -1,0 +1,26 @@
+{
+  "name": "github-release-customer-impact-summary-action",
+  "version": "1.0.0",
+  "description": "GitHub automation scripts for customer impact analysis on release",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/umanai/github-release-customer-impact-summary-action.git"
+  },
+  "author": "uman.ai",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/umanai/github-release-customer-impact-summary-action/issues"
+  },
+  "homepage": "https://github.com/umanai/github-release-customer-impact-summary-action#readme",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "@google/generative-ai": "^0.2.1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.30.0"
+  }
+}

@@ -1,17 +1,16 @@
-name: "Prerelease Changelog"
-description: "GitHub Action that generates a prerelease changelog"
+name: "Release Customer Impact Summary"
+description: "GitHub Action that generates a customer impact summary for a release"
 author: "uman.ai"
 runs:
-  using: "node12"
+  using: "node20"
   main: "dist/index.js"
 inputs:
   github_token:
     description: "The GITHUB_TOKEN secret"
     required: true
-  is_prerelease:
-    description: "Whether the PR is part of a prerelease"
-    default: "false"
-
+  google_gemini_api_key:
+    description: "The Google Gemini API key"
+    required: true
 branding:
   icon: git-pull-request
   color: green

@@ -18,9 +18,6 @@ class CustomerImpactSummaryGenerator {
       core.getInput("google_gemini_api_key").trim() ||
       process.env.GOOGLE_GEMINI_API_KEY;
 
-    console.log(`GitHub token available: ${githubToken ? "Yes" : "No"}`);
-    console.log(`Gemini API key available: ${geminiApiKey ? "Yes" : "No"}`);
-
     if (!githubToken) {
       throw new Error(
         "GitHub token is required (github_token input or GITHUB_TOKEN environment variable)"
@@ -144,20 +141,6 @@ Before getting started, make sure to adhere to the following output guidelines:
 
       if (prNumber) {
         prNumbers.add(prNumber);
-        console.log(
-          `  Found PR #${prNumber} in commit: ${message.split("\n")[0]}`
-        );
-      } else {
-        // Debug: Show commits that don't match the pattern or are excluded
-        if (mergeMatch && isDevelopmentPR) {
-          console.log(
-            `  Skipped development PR #${mergeMatch[1]} in: ${
-              message.split("\n")[0]
-            }`
-          );
-        } else {
-          console.log(`  No PR found in: ${message.split("\n")[0]}`);
-        }
       }
     });
 
@@ -190,17 +173,6 @@ Before getting started, make sure to adhere to the following output guidelines:
       });
 
       console.log(`Comparison found ${comparison.data.commits.length} commits`);
-
-      // Debug: Show all commit messages
-      if (comparison.data.commits.length > 0) {
-        console.log("All commit messages:");
-        comparison.data.commits.forEach((commit, index) => {
-          console.log(
-            `  ${index + 1}. ${commit.commit.message.split("\n")[0]}`
-          );
-        });
-      }
-
       const prNumbers = this.extractPRNumbers(comparison.data.commits);
       console.log(
         `Extracted ${prNumbers.length} PR numbers: ${prNumbers.join(", ")}`
@@ -246,7 +218,7 @@ Before getting started, make sure to adhere to the following output guidelines:
   }
 
   /**
-   * Filter PRs that have client impact labels
+   * Filter PRs that have customer impact labels
    */
   filterClientImpactPRs(pullRequests) {
     return pullRequests.filter((pr) =>
@@ -267,8 +239,8 @@ Before getting started, make sure to adhere to the following output guidelines:
   /**
    * Build context string for Gemini from PR data
    */
-  buildPRContext(clientImpactPRs, includeDiffs = true) {
-    return clientImpactPRs
+  buildPRContext(customerImpactPRs, includeDiffs = true) {
+    return customerImpactPRs
       .map((pr) => {
         let context = `
 ## PR #${pr.number}: ${pr.title}
@@ -314,10 +286,10 @@ ${pr.body || "No description provided"}
   /**
    * Generate Customer Impact summary using Gemini AI
    */
-  async generateSummary(clientImpactPRs, releaseName) {
+  async generateSummary(customerImpactPRs, releaseName) {
     // Try with full context first (including diffs)
-    let prContext = this.buildPRContext(clientImpactPRs, true);
-    let prompt = `Below are the details of ${clientImpactPRs.length} pull requests that were included in the "${releaseName}" release and marked as having client impact.
+    let prContext = this.buildPRContext(customerImpactPRs, true);
+    let prompt = `Below are the details of ${customerImpactPRs.length} pull requests that were included in the "${releaseName}" release and marked as having client impact.
 
 Here are the pull requests:
 ${prContext}`;
@@ -335,8 +307,8 @@ ${prContext}`;
       console.log("Regenerating prompt without file diffs...");
 
       // Regenerate without diffs
-      prContext = this.buildPRContext(clientImpactPRs, false);
-      prompt = `Below are the details of ${clientImpactPRs.length} pull requests that were included in the "${releaseName}" release and marked as having client impact.
+      prContext = this.buildPRContext(customerImpactPRs, false);
+      prompt = `Below are the details of ${customerImpactPRs.length} pull requests that were included in the "${releaseName}" release and marked as having client impact.
 
 Here are the pull requests:
 ${prContext}`;
@@ -353,14 +325,7 @@ ${prContext}`;
       }
     }
 
-    console.log("=".repeat(80));
-    console.log("FULL PROMPT BEING SENT TO GEMINI:");
-    console.log("=".repeat(80));
-    console.log(prompt);
-    console.log("=".repeat(80));
-    console.log("END OF PROMPT");
-    console.log("=".repeat(80));
-
+    console.log("Sending prompt to Gemini...");
     const result = await this.model.generateContent(prompt);
     return result.response.text();
   }
@@ -368,7 +333,7 @@ ${prContext}`;
   /**
    * Update the release description with the Customer Impact summary
    */
-  async updateReleaseDescription(context, summary, clientImpactPRs) {
+  async updateReleaseDescription(context, summary, customerImpactPRs) {
     const csSummarySection = `<details>
 <summary>📋 Customer Impact Summary</summary>
 
@@ -412,19 +377,22 @@ ${summary}
         context.release.tag_name
       );
       const pullRequests = await this.getPRsInRelease(context, previousRelease);
-      const clientImpactPRs = this.filterClientImpactPRs(pullRequests);
+      const customerImpactPRs = this.filterClientImpactPRs(pullRequests);
 
       console.log(
-        `Found ${clientImpactPRs.length} customer-impact PRs out of ${pullRequests.length} total PRs`
+        `Found ${customerImpactPRs.length} customer-impact PRs out of ${pullRequests.length} total PRs`
       );
 
-      if (clientImpactPRs.length === 0) {
+      if (customerImpactPRs.length === 0) {
         console.log("ℹ️ No customer-impact PRs found in this release");
         return;
       }
 
-      const summary = await this.generateSummary(clientImpactPRs, releaseName);
-      await this.updateReleaseDescription(context, summary, clientImpactPRs);
+      const summary = await this.generateSummary(
+        customerImpactPRs,
+        releaseName
+      );
+      await this.updateReleaseDescription(context, summary, customerImpactPRs);
 
       console.log(
         "✅ Customer Impact Summary generation completed successfully"

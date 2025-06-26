@@ -11,6 +11,9 @@ inputs:
   google_gemini_api_key:
     description: "The Google Gemini API key"
     required: true
+outputs:
+  customer_impact_prompt:
+    description: "The prompt that was sent to Gemini AI for generating the customer impact summary"
 branding:
   icon: git-pull-request
   color: green

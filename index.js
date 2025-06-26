@@ -3,6 +3,8 @@
 const { Octokit } = require("@octokit/rest");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const core = require("@actions/core");
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Generate Customer Impact summary for a GitHub release
@@ -53,7 +55,7 @@ Keep the language friendly and business-focused, not technical. Focus on what ma
 
 Before getting started, make sure to adhere to the following output guidelines:
 - Start directly with the summary content. Avoid writing an initial header or title, preamble, acknowledgment, or phrases like "Here is the summary" or "Of course".
-- Just provide the organized summary that the CS team can use and act upon immediately.
+- Do not repeat or include the release version, title, or any introductory phrases. Start directly with the content.
 </guidelines>`,
     });
   }
@@ -316,7 +318,10 @@ ${prContext}`;
 
     console.log("Sending prompt to Gemini...");
     const result = await this.model.generateContent(prompt);
-    return result.response.text();
+    return {
+      summary: result.response.text(),
+      prompt: prompt,
+    };
   }
 
   /**
@@ -345,6 +350,7 @@ ${summary}
       owner: context.repo.owner,
       repo: context.repo.repo,
       release_id: parseInt(context.release.id, 10),
+      tag_name: context.release.tag_name,
       body: updatedBody,
     });
 
@@ -381,15 +387,30 @@ ${summary}
         return;
       }
 
-      const summary = await this.generateSummary(
+      const summaryResult = await this.generateSummary(
         customerImpactPRs,
         releaseName
       );
-      await this.updateReleaseDescription(context, summary, customerImpactPRs);
+      await this.updateReleaseDescription(
+        context,
+        summaryResult.summary,
+        customerImpactPRs
+      );
 
       console.log(
         "✅ Customer Impact Summary generation completed successfully"
       );
+
+      // Save the prompt as an output artifact
+      core.setOutput("customer_impact_prompt", summaryResult.prompt);
+
+      // Save the prompt to a file as an artifact
+      const promptFilePath = path.join(
+        process.env.GITHUB_WORKSPACE,
+        "customer_impact_prompt.txt"
+      );
+      fs.writeFileSync(promptFilePath, summaryResult.prompt);
+      console.log(`Prompt saved to ${promptFilePath}`);
     } catch (error) {
       console.error("❌ Error generating Customer Impact summary:", error);
       core.setFailed(error.message);

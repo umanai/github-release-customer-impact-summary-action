@@ -49,10 +49,10 @@ Your role is to create Customer Impact summaries that:
 </task>
 
 <guidelines>
-Keep the language friendly and business-focused, not technical. Focus on "what this means for our customers" rather than "how we built it."
+Keep the language friendly and business-focused, not technical. Focus on what matters and "what this means for our customers" rather than "how we built it."
 
 Before getting started, make sure to adhere to the following output guidelines:
-- Start directly with the summary content. Avoid writing an initial header or title,preamble, acknowledgment, or phrases like "Here is the summary" or "Of course".
+- Start directly with the summary content. Avoid writing an initial header or title, preamble, acknowledgment, or phrases like "Here is the summary" or "Of course".
 - Just provide the organized summary that the CS team can use and act upon immediately.
 </guidelines>`,
     });
@@ -218,17 +218,6 @@ Before getting started, make sure to adhere to the following output guidelines:
   }
 
   /**
-   * Filter PRs that have customer impact labels
-   */
-  filterClientImpactPRs(pullRequests) {
-    return pullRequests.filter((pr) =>
-      pr.labels.some((label) =>
-        label.name.toLowerCase().includes("customer impact")
-      )
-    );
-  }
-
-  /**
    * Count tokens using Gemini's built-in token counter
    */
   async countTokens(text) {
@@ -337,11 +326,15 @@ ${prContext}`;
     const csSummarySection = `<details>
 <summary>📋 Customer Impact Summary</summary>
 
+
 ${summary}
+
+
+---
+
 
 </details>
 
----
 
 `;
 
@@ -377,10 +370,10 @@ ${summary}
         context.release.tag_name
       );
       const pullRequests = await this.getPRsInRelease(context, previousRelease);
-      const customerImpactPRs = this.filterClientImpactPRs(pullRequests);
+      const customerImpactPRs = pullRequests;
 
       console.log(
-        `Found ${customerImpactPRs.length} customer-impact PRs out of ${pullRequests.length} total PRs`
+        `Processing ${customerImpactPRs.length} PRs from the release`
       );
 
       if (customerImpactPRs.length === 0) {
